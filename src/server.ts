@@ -77,6 +77,7 @@ const webAuthHandler: Handler = async (req, res) => {
 
   console.log({ user: options.user })
 
+  //NOTE: The generated `options` should be associated with a user account and stored in the database
   currentOptions = options
   res.status(200).json(options)
 }
@@ -95,6 +96,8 @@ const verifyResponse: Handler = async (req, res) => {
 
   const { credential, credentialBackedUp, credentialDeviceType } =
     verifiedRegistration.registrationInfo!
+
+  //NOTE: The passkey information should be stored in the database and associated with a user account
   passKeys.push({
     // `user` here is from Step 2
     user: {
@@ -135,6 +138,7 @@ const getAuthenticationOptions: Handler = async (req, res) => {
       userVerification: 'required',
     })
 
+  //NOTE: The generated `options` should be associated with a user account and stored in the database
   registrationOptions = options
 
   res.status(200).json(options)
