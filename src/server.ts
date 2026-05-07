@@ -51,7 +51,7 @@ type Passkey = {
 let currentOptions: PublicKeyCredentialCreationOptionsJSON
 let registrationOptions: PublicKeyCredentialRequestOptionsJSON
 let verifiedRegistration: VerifiedRegistrationResponse
-let passKey: Passkey
+let passKeys: Passkey[] = []
 
 const webAuthRouter = Router()
 
@@ -95,7 +95,7 @@ const verifyResponse: Handler = async (req, res) => {
 
   const { credential, credentialBackedUp, credentialDeviceType } =
     verifiedRegistration.registrationInfo!
-  passKey = {
+  passKeys.push({
     // `user` here is from Step 2
     user: {
       id: currentOptions.user.id,
@@ -110,21 +110,29 @@ const verifyResponse: Handler = async (req, res) => {
     // The number of times the authenticator has been used on this site so far
     counter: credential.counter,
     // How the browser can talk with this credential's authenticator
-    transports: credential.transports!,
+    transports: credential.transports || [],
     // Whether the passkey is single-device or multi-device
     deviceType: credentialDeviceType,
     // Whether the passkey has been backed up in some way
     backedUp: credentialBackedUp,
-  }
+  })
   res.status(200).json(verification)
 }
 
-const getAuthenticationOptions: Handler = async (_, res) => {
+const getAuthenticationOptions: Handler = async (req, res) => {
+  const { email } = req.body
+
   const options: PublicKeyCredentialRequestOptionsJSON =
     await generateAuthenticationOptions({
       rpID,
       // Require users to use a previously-registered authenticator
-      allowCredentials: [],
+      allowCredentials: passKeys
+        .filter(pk => pk.user.username === email)
+        .map(pk => ({
+          id: pk.id,
+          transports: pk.transports || [],
+        })),
+      userVerification: 'required',
     })
 
   registrationOptions = options
@@ -133,6 +141,8 @@ const getAuthenticationOptions: Handler = async (_, res) => {
 }
 
 const verifyAuthentication: Handler = async (req, res) => {
+  const passKey = passKeys.find(pk => pk.id === req.body.id)!
+
   const verification = await verifyAuthenticationResponse({
     response: req.body,
     expectedChallenge: registrationOptions.challenge,
@@ -151,7 +161,7 @@ const verifyAuthentication: Handler = async (req, res) => {
 
 webAuthRouter.route('/').post(webAuthHandler)
 webAuthRouter.route('/verify').post(verifyResponse)
-webAuthRouter.route('/authenticate').get(getAuthenticationOptions)
+webAuthRouter.route('/authenticate').post(getAuthenticationOptions)
 webAuthRouter.route('/verify-authentication').post(verifyAuthentication)
 
 app.use('/', webAuthRouter)
